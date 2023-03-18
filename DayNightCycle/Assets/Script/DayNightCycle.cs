@@ -3,16 +3,23 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.Networking;
 using SimpleJSON;
+using Unity.VisualScripting;
+using System.Globalization;
 
 public class DayNightCycle : MonoBehaviour
 {
-
+    
     private bool realModeSunReady = false;
     public float latitude, longitude,cycleTime;//cycle time means how many minutes complete a day night cycle
     public bool useRealTime;
-    private float sunriseSecond, sunsetSecond,timer, nowTimeSecond;
+    private float sunriseSecond, sunsetSecond,timer, nowTimeSecond, timeSpeedConstant, noonTimeSecond;
     private string today;
     private const int DayTimeSecond = 86400;
+
+    [SerializeField]
+    private Light sunLight;
+    [SerializeField]
+    private GameObject star;
 
 
     private void Start() {
@@ -24,6 +31,7 @@ public class DayNightCycle : MonoBehaviour
         {
             GetSetTimeData();
         }
+
     }
 
     void Update()
@@ -36,19 +44,58 @@ public class DayNightCycle : MonoBehaviour
                 GetRealTimeData();
             }
 
-            gameObject.transform.rotation = Quaternion.Euler(SunAngle(sunriseSecond, sunsetSecond, nowTimeSecond + timer), -90, 0);
+            gameObject.transform.rotation = Quaternion.Euler(SunAngle(sunriseSecond, sunsetSecond, nowTimeSecond + timer), gameObject.transform.rotation.y, gameObject.transform.rotation.z);
         }
         else if (!useRealTime)
         {
-            float timeSpeedConstant = DayTimeSecond / (cycleTime * 60);
-            gameObject.transform.rotation = Quaternion.Euler(SunAngle(sunriseSecond, sunsetSecond, timer*timeSpeedConstant), -90, 0);
+           timeSpeedConstant = DayTimeSecond / (cycleTime * 60);
+            if (timer*timeSpeedConstant > DayTimeSecond)
+            {
+                timer = 0;
+            }
+            gameObject.transform.rotation = Quaternion.Euler(SunAngle(sunriseSecond, sunsetSecond, timer*timeSpeedConstant), gameObject.transform.rotation.y, gameObject.transform.rotation.z);
         }
+        ControlLightIntensity();
     }
 
+    void ControlLightIntensity()
+    {
+        if (useRealTime)
+        {
+            if (nowTimeSecond + timer < sunsetSecond && nowTimeSecond + timer> sunriseSecond)
+            {
+                star.SetActive(false);
+                sunLight.intensity =1-(Mathf.Abs( noonTimeSecond - (nowTimeSecond + timer-sunriseSecond))/ noonTimeSecond);
+            }
+            else
+            {
+                sunLight.intensity = 0;
+                star.SetActive(true);
+            }
+
+        }
+        else
+        {
+            if (timer * timeSpeedConstant < sunsetSecond && timer * timeSpeedConstant > sunriseSecond)
+            {
+                star.SetActive(false);
+                sunLight.intensity =1-( Mathf.Abs(noonTimeSecond - (timer * timeSpeedConstant-sunriseSecond)) / noonTimeSecond);
+            }
+            else
+            {
+                star.SetActive(true);
+                sunLight.intensity = 0;
+            }
+
+        }
+
+    }
+    
     void GetSetTimeData()
     {
         sunriseSecond = 21600f;
         sunsetSecond = 64800f;
+        noonTimeSecond = (sunsetSecond - sunriseSecond)/2;
         nowTimeSecond = 0;
     }
 
@@ -98,6 +145,8 @@ public class DayNightCycle : MonoBehaviour
                     if (sunsetSecond > 86400)
                         sunsetSecond -= 86400;
 
+                    
+                    noonTimeSecond = (sunsetSecond - sunsetSecond) /2;
                     realModeSunReady = true;
                     timer = 0;
                     //Debug.Log("finish suntime ");
